@@ -10,10 +10,10 @@ function Invoke-Bundler {
     Write-Log "Bundling package: $packageName" "INFO"
 
     # 1. Collect Files
-    $filesToPack = @()
+    $pathsToPack = @()
     
     # Always include manifest
-    $filesToPack += Join-Path $projectRoot "roms_package.json"
+    $pathsToPack += Join-Path $projectRoot "roms_package.json"
 
     # Add listed files with SMART EXCLUSION
     # Note: Even if a dev accidentally lists .git in the manifest, we skip it.
@@ -30,19 +30,34 @@ function Invoke-Bundler {
         }
 
         if (-not $skip) {
-            $filesToPack += Join-Path $projectRoot $file
+            # Resolve wildcards
+            $resolved = Get-ChildItem -Path (Join-Path $projectRoot $file) -File -ErrorAction SilentlyContinue
+            if ($resolved) {
+                $pathsToPack += $resolved.FullName
+            }
         }
     }
 
-    # 2. Build the Zip
-    if (Test-Path $tempZip) { Remove-Item $tempZip -Force }
+    # Deduplicate paths to prevent Compress-Archive/Zip failure
+    $uniquePaths = $pathsToPack | Select-Object -Unique
+
+    # 2. Build the Zip (.NET Industrial Strength)
     if (Test-Path $targetPath) { Remove-Item $targetPath -Force }
 
     try {
-        Compress-Archive -Path $filesToPack -DestinationPath $tempZip -ErrorAction Stop
-        Move-Item $tempZip $targetPath -ErrorAction Stop
+        Add-Type -AssemblyName System.IO.Compression
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $zip = [System.IO.Compression.ZipFile]::Open($targetPath, [System.IO.Compression.ZipArchiveMode]::Create)
+        
+        foreach ($p in $uniquePaths) {
+            $entryName = $p.Replace($projectRoot, "").TrimStart("\").TrimStart("/")
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $p, $entryName)
+        }
+        
+        $zip.Dispose()
         Write-Log "Successfully built: $targetPath" "SUCCESS"
     } catch {
+        if ($zip) { $zip.Dispose() }
         Write-Log "Failed to build package: $_" "ERROR"
         throw $_
     }
