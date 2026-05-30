@@ -8,6 +8,7 @@ function Test-Manifest {
         Write-Log "Strict Validation Failed: 'installDir' is deprecated. Apps must use the 'Name-as-Folder' standard." "ERROR"
         return $false
     }
+    Write-Log "Verified manifest is relocatable (No installDir)." "DEBUG"
 
     # Trinity v1.1.0 Required Fields
     $requiredFields = @("name", "version", "author", "architecture", "commandName", "executable", "files")
@@ -23,12 +24,15 @@ function Test-Manifest {
         Write-Log "Strict Validation Failed. Missing fields: $($missing -join ', ')" "ERROR"
         return $false
     }
+    Write-Log "Mandatory structural fields verified: $($requiredFields -join ', ')" "DEBUG"
+    Write-Log "Architecture target identified as: $($config.architecture)" "DEBUG"
 
     # Verify Files Array
     if ($config.files.Count -eq 0) {
         Write-Log "Manifest 'files' array is empty. Nothing to pack." "ERROR"
         return $false
     }
+    Write-Log "Found $($config.files.Count) physical assets in manifest." "DEBUG"
 
     # Industrial Strength: Validate Dependency Syntax (Trinity v1.1.0 Object Model)
     if ($config.dependencies) {

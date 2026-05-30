@@ -4,8 +4,11 @@ function Invoke-Bundler {
     $name = $config.name
     $version = $config.version
     $packageName = "$name-$version.rms"
+    if ($config.architecture -and $config.architecture -ne "all") {
+        $packageName = "${name}_$($config.architecture)-$version.rms"
+    }
+
     $targetPath = Join-Path $outputPath $packageName
-    $tempZip = Join-Path $env:TEMP "$packageName.zip"
 
     Write-Log "Bundling package: $packageName" "INFO"
 
@@ -13,18 +16,21 @@ function Invoke-Bundler {
     $pathsToPack = @()
     
     # Always include manifest
-    $pathsToPack += Join-Path $projectRoot "roms_package.json"
+    $manifestPath = Join-Path $projectRoot "roms_package.json"
+    if (Test-Path $manifestPath) {
+        $pathsToPack += $manifestPath
+    }
 
     # Add listed files with SMART EXCLUSION
-    # Note: Even if a dev accidentally lists .git in the manifest, we skip it.
     $ignoredPatterns = @(".git", ".vscode", "builder.ps1", "builder.bat", "test")
 
+    Write-Log "Initializing smart file collection..." "DEBUG"
     foreach ($file in $config.files) {
         $skip = $false
         foreach ($pattern in $ignoredPatterns) {
             if ($file -like "*$pattern*") {
                 $skip = $true
-                Write-Log "Smart Exclusion: Skipping $file" "DEBUG"
+                Write-Log "Smart Exclusion: Skipping prohibited pattern [$pattern] found in '$file'" "DEBUG"
                 break
             }
         }
@@ -38,11 +44,14 @@ function Invoke-Bundler {
         }
     }
 
-    # Deduplicate paths to prevent Compress-Archive/Zip failure
+    # Deduplicate paths
     $uniquePaths = $pathsToPack | Select-Object -Unique
 
     # 2. Build the Zip (.NET Industrial Strength)
-    if (Test-Path $targetPath) { Remove-Item $targetPath -Force }
+    if (Test-Path $targetPath) { 
+        Write-Log "Overwriting existing package: $packageName" "TRACE"
+        Remove-Item $targetPath -Force 
+    }
 
     try {
         Add-Type -AssemblyName System.IO.Compression
@@ -51,9 +60,27 @@ function Invoke-Bundler {
         
         foreach ($p in $uniquePaths) {
             $entryName = $p.Replace($projectRoot, "").TrimStart("\").TrimStart("/")
-            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $p, $entryName)
+            
+            # Capture the physical entry
+            $entry = [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $p, $entryName)
+
+            # 1. Standard TRACE Header (Prefixed)
+            Write-Log "Tracing compression: $entryName" "TRACE"
+
+            # 2. Detailed Properties (Clean Passthrough for Console)
+            if ($global:VerboseLevel -ge 2) {
+                $props = $entry | Select-Object Archive, CompressedLength, ExternalAttributes, FullName, LastWriteTime, Length, Name
+                $propString = $props | Out-String
+                
+                # ON-SCREEN: Clean Look (No Prefix)
+                Write-Host $propString -ForegroundColor Cyan
+                
+                # LOG FILE: Tight-Inline Audit (One Line, One Event)
+                $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                $jsonProps = $props | ConvertTo-Json -Compress
+                "[$timestamp] [TRACE] [Builder] Details ($entryName): $jsonProps" | Out-File -FilePath $global:ROMs_MASTER_LOG -Append -Encoding utf8
+            }
         }
-        
         $zip.Dispose()
         Write-Log "Successfully built: $targetPath" "SUCCESS"
     } catch {

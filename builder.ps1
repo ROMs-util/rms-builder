@@ -1,13 +1,31 @@
-param(
-    [Parameter(Mandatory = $false, Position = 0)]
-    [string]$inputPath,
+# builder.ps1 - The ROMs-util Package Builder (Router)
+# Usage: builder <inputPath> [-out <path>] [flags]
 
-    [Parameter(Mandatory = $false)]
-    [string]$out,
+# ---------------------------------------------
+# ARGUMENT PARSING (Industrial Strength)
+# ---------------------------------------------
+# Separate Global Flags (Options) from Positional Data (Command/Path)
+$flags = @($args | Where-Object { $_ -is [string] -and $_.StartsWith("-") })
+[array]$data = @($args | Where-Object { -not ($_ -is [string] -and $_.StartsWith("-")) })
 
-    [Parameter(Mandatory = $false)]
-    [switch]$help
-)
+$inputPath = $data[0]
+
+# Global Flag Pattern (Design Standard: $args -contains)
+$help = ($flags -contains "-h") -or ($flags -contains "--help")
+
+# Multi-Level Verbosity Parsing
+$global:VerboseLevel = 0
+if ($flags -contains "-vvv") { $global:VerboseLevel = 3 }
+elseif ($flags -contains "-vv") { $global:VerboseLevel = 2 }
+elseif ($flags -contains "-v" -or $flags -contains "--verbose") { $global:VerboseLevel = 1 }
+
+# Legacy flag compatibility
+$global:Verbose = ($global:VerboseLevel -gt 0)
+
+# Out Parameter (Manual detection for flag pattern)
+$outIdx = [array]::IndexOf($args, "-out")
+if ($outIdx -lt 0) { $outIdx = [array]::IndexOf($args, "--out") }
+$out = if ($outIdx -ge 0 -and $args.Count -gt ($outIdx + 1)) { $args[$outIdx + 1] } else { $null }
 
 # ---------------------------------------------
 # LOAD MODULES
@@ -17,6 +35,12 @@ $libPath = Join-Path $PSScriptRoot "lib"
 . (Join-Path $libPath "help.ps1")
 . (Join-Path $libPath "validator.ps1")
 . (Join-Path $libPath "bundler.ps1")
+
+# ---------------------------------------------
+# IDENTITY DISCOVERY
+# ---------------------------------------------
+if ($args) { Write-Log "Raw Args: $($args -join ' ')" "RAW" }
+if ($inputPath) { Write-Log "Input Path: $inputPath" "RAW" }
 
 # ---------------------------------------------
 # PRE-FLIGHT CHECKS
@@ -58,7 +82,9 @@ Write-Log "Starting ROMs Package Builder..." "DEBUG"
 
 # 1. Load Manifest
 try {
-    $config = Get-Content $manifestPath -Raw | ConvertFrom-Json
+    $rawManifest = Get-Content $manifestPath -Raw
+    if ($rawManifest) { Write-Log "Manifest Data ($manifestPath): $rawManifest" "RAW" }
+    $config = $rawManifest | ConvertFrom-Json
 } catch {
     Write-Log "Failed to parse roms_package.json: $_" "ERROR"
     exit 1
