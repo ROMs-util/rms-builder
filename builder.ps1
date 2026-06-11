@@ -2,9 +2,10 @@
 # Usage: builder <inputPath> [-out <path>] [flags]
 
 # ---------------------------------------------
-# ARGUMENT PARSING (Industrial Strength)
+# ARGUMENT PARSING
 # ---------------------------------------------
-# Separate Global Flags (Options) from Positional Data (Command/Path)
+# Separates global flags (options) from positional data (command/path).
+# Uses StartsWith("-") to identify flags, rest is command/input.
 $flags = @($args | Where-Object { $_ -is [string] -and $_.StartsWith("-") })
 [array]$data = @($args | Where-Object { -not ($_ -is [string] -and $_.StartsWith("-")) })
 

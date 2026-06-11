@@ -7,7 +7,7 @@ $global:ROMs_MASTER_LOG = "$global:ROMs_LOGS\roms.log"
 
 $global:ROMs_TEMP       = "$global:ROMs_ROOT\temp"
 
-# Industrial Strength: Multi-Version Architecture Detection
+# Architecture Detection (PowerShell Version Aware)
 $global:ROMs_ARCH = if ($PSVersionTable.PSVersion.Major -ge 6) {
     [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
 } else {
@@ -16,6 +16,13 @@ $global:ROMs_ARCH = if ($PSVersionTable.PSVersion.Major -ge 6) {
 
 # ---------------------------------------------
 # LOGGING SYSTEM
+# Writes timestamped log entries to console (colored by level) and master log file.
+# HOW IT WORKS:
+# 1. Detect JSON in message and pretty-print for readability.
+# 2. Format output with timestamp, source, and level badge.
+# 3. Write to $global:ROMs_MASTER_LOG with retry logic for locked files.
+# 4. Output to console with color coding (INFO=White, WARN=Yellow, ERROR=Red, etc.).
+# Uses global $VerboseLevel: 0=INFO/WARN/ERROR/SUCCESS, 1=+DEBUG, 2=+TRACE, 3=+RAW
 # ---------------------------------------------
 function Write-Log {
     param(

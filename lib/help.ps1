@@ -1,3 +1,9 @@
+# ---------------------------------------------
+# HELP DISPLAY
+# Shows usage documentation for the package builder CLI.
+# Displays: Usage, Arguments, Options, Core Tasks, and Examples.
+# Output via Write-Host for formatting preservation.
+# ---------------------------------------------
 function Show-Help {
     param([string]$invokedAs)
 

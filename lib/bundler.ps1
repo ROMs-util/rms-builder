@@ -1,3 +1,15 @@
+# ---------------------------------------------
+# PACKAGE BUNDLING
+# Creates an .rms package by zipping validated project files.
+# HOW IT WORKS:
+# 1. Build output filename: name-version.rms or name_arch-version.rms.
+# 2. Collect files: always include roms_package.json, then add files from manifest.
+# 3. Smart exclusion: skip .git, .vscode, builder.ps1, builder.bat, test folders.
+# 4. Deduplicate file paths.
+# 5. Create ZIP using native .NET ZipFile.
+# 6. Log compression details at TRACE level.
+# Throws on failure, returns nothing on success.
+# ---------------------------------------------
 function Invoke-Bundler {
     param($config, $projectRoot, $outputPath)
 
@@ -47,7 +59,7 @@ function Invoke-Bundler {
     # Deduplicate paths
     $uniquePaths = $pathsToPack | Select-Object -Unique
 
-    # 2. Build the Zip (.NET Industrial Strength)
+    # 2. Build the Zip (native .NET)
     if (Test-Path $targetPath) { 
         Write-Log "Overwriting existing package: $packageName" "TRACE"
         Remove-Item $targetPath -Force 
