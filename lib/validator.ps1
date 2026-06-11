@@ -56,7 +56,7 @@ function Test-Manifest {
             $packageDeps = @($config.dependencies)
         }
 
-        $depRegex = "^[a-z0-9-]+(?::(\^|~|>=|>|<=|<)?\s*\d+(?:\.\d+)?(?:\.\d+)?(?:-.+)?)?$"
+        $depRegex = "^[a-z0-9-]+(?::(\^|~|>=|>|<=|<|=)?\s*\d+(?:\.\d+)?(?:\.\d+)?(?:-.+)?)?$"
         foreach ($d in $packageDeps) {
             if ($d -notmatch $depRegex) {
                 Write-Log "Invalid dependency syntax: '$d'. Use 'name' or 'name:^1.2.0'." "ERROR"
